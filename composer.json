@@ -20,7 +20,7 @@
         }
     ],
     "autoload": {
-        "classmap": ["src"]
+        "timeslots": ["src"]
     },
     "extra": {
         "branch-alias": {
