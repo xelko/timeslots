@@ -1,0 +1,30 @@
+{
+    "name": "xelko/timeslots",
+    "description": "Génération de tranches horaires à partir de règles d'ouverture et de fermeture",
+    "homepage": "https://github.com/xelko/timeslots/",
+    "keywords": ["timeslots", "calendar", "calendrier", "horaires"],
+    "minimum-stability": "dev",
+    "license": "MIT",
+    "type": "library",
+    "require": {
+        "php": ">=5.4.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "3.7.*"
+    },
+    "authors": [
+        {
+            "name": "Denis BICHON",
+            "email": "denis.bichon@xelko.com",
+            "homepage": "http://xelko.com/"
+        }
+    ],
+    "autoload": {
+        "classmap": ["src"]
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.0.x-dev"
+        }
+    }
+}

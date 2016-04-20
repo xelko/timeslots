@@ -1,2 +1,2 @@
 # timeslots
-Gestion de tranches horaires à partir de règles d'ouverture et de fermeture
+Génération de tranches horaires à partir de règles d'ouverture et de fermeture
