@@ -20,7 +20,9 @@
         }
     ],
     "autoload": {
-        "psr-0": { "timeslots": ["src"] }
+        "psr-4": {
+            "Xelko\\TimeSlots\\": "src/Xelko/TimeSlots/"
+        }
     },
     "extra": {
         "branch-alias": {
