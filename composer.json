@@ -20,7 +20,7 @@
         }
     ],
     "autoload": {
-        "timeslots": ["src"]
+        "psr-0": { "timeslots": ["src"] }
     },
     "extra": {
         "branch-alias": {
