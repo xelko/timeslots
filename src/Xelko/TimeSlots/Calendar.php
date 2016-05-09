@@ -35,7 +35,7 @@ class Calendar
 
     /**
      * Détermine le nombre maximum d'éléments mis en cache (par fonction)
-     * @param int $cacheSize
+     * @param int $cacheSize Nombre d'éléments mémorisés par cache
      * @return \Xelko\TimeSlots\Calendar
      */
     public function setCacheSize($cacheSize = 0)
@@ -46,12 +46,13 @@ class Calendar
 
     /**
      * Détermine la granularité des crénaux horaires
-     * @param int $timeSlotSize
+     * @param int $timeSlotSize Granularité (minutes)
      * @return \Xelko\TimeSlots\Calendar
      */
     public function setGranularity($timeSlotSize = 30)
     {
         $this->granularity = abs((int) $timeSlotSize);
+        $this->clearDays();
         return $this;
     }
 
@@ -63,44 +64,13 @@ class Calendar
     public function setMidnightAlignment($midnightAlignment = false)
     {
         $this->midnightAlignment = (boolean) $midnightAlignment;
+        $this->clearDays();
         return $this;
     }
 
     /**
-     * Parse la règle (string) et la retourne sur forme de tableau
-     * @param string $sRule
-     * @return array
-     * @throws Exception
-     */
-    private function parseRule($sRule)
-    {
-        if (!is_string($sRule)) {
-            throw new Exception('La règle doit être de type string');
-        }
-        $aParse = [];
-        $aRules = explode(";", $sRule);
-        foreach ($aRules as $rule) {
-            if (trim($rule) === "") {
-                continue;
-            }
-            list($ruleName, $ruleValues) = explode("=", $rule . "=");
-            $aValues = explode(",", $ruleValues);
-            foreach ($aValues as $value) {
-                if (strpos($value, "-") !== FALSE) {
-                    $aBoundaries = explode("-", $value);
-                    $aParse[trim($ruleName)][] = ["min" => trim($aBoundaries[0]), "max" => trim($aBoundaries[1])];
-                } else {
-                    $aParse[trim($ruleName)][] = trim($value);
-                }
-            }
-        }
-
-        return $aParse;
-    }
-
-    /**
      * Ajoute un tableau de règles définissant les horaires d'ouverture
-     * @param array $aRules
+     * @param array $aRules Tableau de règles
      * @return \Xelko\TimeSlots\Calendar
      */
     public function addOpenRule(array $aRules)
@@ -108,12 +78,13 @@ class Calendar
         foreach ($aRules as $rule) {
             $this->aRules["open"][] = $this->parseRule($rule);
         }
+        $this->clearDays();
         return $this;
     }
 
     /**
      * Ajoute un tableau de règles définissant les horaires de fermeture
-     * @param array $aRules
+     * @param array $aRules  Tableau de règles
      * @return \Xelko\TimeSlots\Calendar
      */
     public function addCloseRule(array $aRules)
@@ -121,11 +92,12 @@ class Calendar
         foreach ($aRules as $rule) {
             $this->aRules["close"][] = $this->parseRule($rule);
         }
+        $this->clearDays();
         return $this;
     }
 
     /**
-     * Supprime toutes les règles précédemment définies
+     * Supprime toutes les règles précédemment définies (et les données générées)
      * @return \Xelko\TimeSlots\Calendar
      */
     public function clearRules()
@@ -137,22 +109,7 @@ class Calendar
     }
 
     /**
-     * Vide le cache
-     * @return \Xelko\TimeSlots\Calendar
-     */
-    public function clearCache()
-    {
-        $this->cache = [
-          'generateTimeSlotsOfDay' => [],
-          'generateTimeSlotsOfPeriod' => [],
-          'substractPeriods' => [],
-          'reducePeriods' => [],
-        ];
-        return $this;
-    }
-
-    /**
-     * Supprime toutes les règles d'ouverture précédemment définies
+     * Supprime toutes les règles d'ouverture précédemment définies (et les données générées)
      * @return \Xelko\TimeSlots\Calendar
      */
     public function clearOpenRules()
@@ -163,7 +120,7 @@ class Calendar
     }
 
     /**
-     * Supprime toutes les règles de fermeture précédemment définies
+     * Supprime toutes les règles de fermeture précédemment définies (et les données générées)
      * @return \Xelko\TimeSlots\Calendar
      */
     public function clearCloseRules()
@@ -174,68 +131,42 @@ class Calendar
     }
 
     /**
-     * Supprime toutes les données générées
-     * @return \Xelko\TimeSlots\Calendar
-     */
-    private function clearDays()
-    {
-        $this->aDays = null;
-        return $this;
-    }
-
-    /**
-     * Retourne pour chaque date si le jour est ouvert ou fermé (entre les dates de début et de fin)
-     * @param \DateTime $dtBegin dateHeure de debut
-     * @param \DateTime $dtEnd dateHeure de fin
-     * @return array
-     */
-    public function getDays(\DateTime $dtBegin, \DateTime $dtEnd)
-    {
-        $dtBegin = clone $dtBegin;
-        $dtBegin->setTime(0, 0, 0);
-        $dtEnd = clone $dtEnd;
-        $dtEnd->modify('+1 day')->setTime(0, 0, 0);
-        $dtCurrent = clone $dtBegin;
-        $days = [];
-        while ($dtCurrent < $dtEnd) {
-            $days[$dtCurrent->format($this->formatDate)] = $this->getDay($dtCurrent);
-            $dtCurrent->modify('+1 day');
-        }
-        return $days;
-    }
-
-    /**
-     * Retourne si le jour passé en paramètre contient des horaires d'ouverture
-     * @param \DateTime $dtDay
-     * @return boolean
-     */
-    private function getDay(\DateTime $dtDay)
-    {
-        return ($this->getPeriodsOfDay($dtDay)) ? 1 : 0;
-    }
-
-    /**
      * Retourne les périodes ouvertes pour chaque date (entre les dates de début et de fin) 
-     * @param \DateTime $dtDay
+     * @param \DateTime $dtBegin DateHeure de début
+     * @param \DateTime $dtEnd DateHeure de fin (exclu)
+     * @param boolean $withAjustment Tient compte des horaires (oui/non)
      * @return array
      */
-    public function getPeriodsOfDays(\DateTime $dtBegin, \DateTime $dtEnd)
+    public function getPeriodsOfDays(\DateTime $dtBegin, \DateTime $dtEnd, $withAjustment = false)
     {
-        $dtBegin = clone $dtBegin;
-        $dtBegin->setTime(0, 0, 0);
-        $dtEnd = clone $dtEnd;
-        $dtEnd->modify('+1 day')->setTime(0, 0, 0);
-        $dtCurrent = clone $dtBegin;
+        $dtBeginDate = clone $dtBegin;
+        $dtBeginDate->setTime(0, 0, 0);
+
+        $dtCurrent = clone $dtBeginDate;
+
+        $dtEndDate = clone $dtEnd;
+        // $dtEnd est exclu donc on retire une seconde
+        $dtEndDate->modify("-1 sec")->setTime(0, 0, 0);
+
         $days = [];
-        while ($dtCurrent < $dtEnd) {
+        while ($dtCurrent <= $dtEndDate) {
             $days[$dtCurrent->format($this->formatDate)] = $this->getPeriodsOfDay($dtCurrent);
             $dtCurrent->modify('+1 day');
         }
+
+        if ((bool) $withAjustment) {
+            $sBeginDate = $dtBeginDate->format($this->formatDate);
+            $days[$sBeginDate] = $this->ajustPeriods($days[$sBeginDate], $dtBegin, -1);
+
+            $sEndDate = $dtEndDate->format($this->formatDate);
+            $days[$sEndDate] = $this->ajustPeriods($days[$sEndDate], $dtEnd, 1);
+        }
+
         return $days;
     }
 
     /**
-     * Retourne les périodes ouvertes du jour passé en paramètre
+     * Retourne les périodes ouvertes du jour passé en paramètre 
      * @param \DateTime $dtDay
      * @return array
      */
@@ -251,7 +182,34 @@ class Calendar
     }
 
     /**
-     * Génère les périodes du jour passé en parametre
+     * Retourne les crénaux horaires d'ouverture pour chaque date (entre les dates de début et de fin) 
+     * @param \DateTime $dtBegin DateHeure de début
+     * @param \DateTime $dtEnd DateHeure de fin (exclu)
+     * @param boolean $withAjustment Tient compte des horaires (oui/non)
+     * @return type
+     */
+    public function getTimeSlotsOfDays(\DateTime $dtBegin, \DateTime $dtEnd, $withAjustment = false)
+    {
+        $periodsDays = $this->getPeriodsOfDays($dtBegin, $dtEnd, $withAjustment);
+        $days = [];
+        foreach ($periodsDays as $key => $periods) {
+            $days[$key] = $this->getTimeSlotsOfDayPeriods($periods);
+        }
+        return $days;
+    }
+
+    /**
+     * Retourne les crénaux horaires des périodes de la journée passées en paramètre  
+     * @param array $aPeriod array(array('begin'=>(int) minutes, 'end'=>(int) minutes)) {minutes 0..1440}
+     * @return array
+     */
+    public function getTimeSlotsOfDayPeriods(array $aPeriods)
+    {
+        return $this->generateTimeSlotsOfDayPeriods($aPeriods);
+    }
+
+    /**
+     * Génère les périodes du jour passé en parametre 
      * @param \DateTime $dtDay
      * @return array
      */
@@ -272,127 +230,51 @@ class Calendar
     }
 
     /**
-     * Retourne les crénaux horaires d'ouverture pour chaque date (entre les dates de début et de fin)
-     * @param \DateTime $dtBegin
-     * @param \DateTime $dtEnd
-     * @return type
-     */
-    public function getTimeSlotsOfDays(\DateTime $dtBegin, \DateTime $dtEnd)
-    {
-        $dtBegin = clone $dtBegin;
-        $dtBegin->setTime(0, 0, 0);
-        $dtEnd = clone $dtEnd;
-        $dtEnd->modify('+1 day')->setTime(0, 0, 0);
-        $dtCurrent = clone $dtBegin;
-        $days = [];
-        while ($dtCurrent < $dtEnd) {
-            $days[$dtCurrent->format($this->formatDate)] = $this->getTimeSlotsOfDay($dtCurrent);
-            $dtCurrent->modify('+1 day');
-        }
-        return $days;
-    }
-
-    /**
-     * Retourne les crénaux horaires d'ouverture de la journée passé en paramètre
-     * @param \DateTime $dtDay
+     * Génère les crénaux horaires pour la periode passée en paramètre 
+     * @param array $aPeriods array('begin'=>(int) minutes, 'end'=>(int) minutes) [minutes 0..1439]
      * @return array
      */
-    public function getTimeSlotsOfDay(\DateTime $dtDay)
+    private function generateTimeSlotsOfDayPeriods(array $aPeriods)
     {
-        $sDate = $dtDay->format($this->formatDate);
-
-        if (!isset($this->aDays[$sDate]["timeSlot"])) {
-            $this->aDays[$sDate]["timeSlot"] = $this->generateTimeSlotsOfDay($dtDay);
-        }
-
-        return $this->aDays[$sDate]["timeSlot"];
-    }
-
-    /**
-     * Retourne les crénaux horaires de la période passée en paramètre 
-     * @param array $aPeriod array('begin'=>(int) minutes, 'end'=>(int) minutes) [minutes 0..1439]
-     * @return array
-     */
-    public function getTimeSlotsOfPeriod(array $aPeriod)
-    {
-        return $this->generateTimeSlotsOfPeriod($aPeriod);
-    }
-
-    /**
-     * Génère les crénaux horaires de la journée passé en paramètre
-     * @param \DateTime $dtDay
-     * @return array
-     */
-    private function generateTimeSlotsOfDay(\DateTime $dtDay)
-    {
-        $aPeriods = $this->getPeriodsOfDay($dtDay);
-
         if ($this->cacheSize) {
             $cacheKey = serialize($aPeriods);
-            if (isset($this->cache['generateTimeSlotsOfDay'][$cacheKey])) {
-                return $this->cache['generateTimeSlotsOfDay'][$cacheKey];
+
+            if (isset($this->cache['generateTimeSlotsOfDayPeriods'][$cacheKey])) {
+                return $this->cache['generateTimeSlotsOfDayPeriods'][$cacheKey];
             }
         }
 
         $timeSlots = [];
+
         foreach ($aPeriods as $aPeriod) {
-            $timeSlots = array_merge($timeSlots, $this->generateTimeSlotsOfPeriod($aPeriod));
+            if (isset($aPeriod['begin']) && isset($aPeriod['end']) && is_integer($aPeriod['begin']) && is_integer($aPeriod['end'])) {
+                $begin = $aPeriod['begin'];
+                $granularity = $this->granularity;
+                if ($this->midnightAlignment && ($begin % $granularity)) {
+                    $begin = floor(($begin / $granularity) + 1) * $granularity;
+                }
+                for (; $begin + $granularity <= $aPeriod['end']; $begin += $granularity) {
+                    $timeSlots[] = [
+                      "begin" => $begin,
+                      "end" => $begin + $granularity,
+                    ];
+                }
+            }
         }
 
         if ($this->cacheSize) {
-            if (count($this->cache['generateTimeSlotsOfDay']) > $this->cacheSize) {
-                array_shift($this->cache['generateTimeSlotsOfDay']);
+            if (count($this->cache['generateTimeSlotsOfDayPeriods']) > $this->cacheSize) {
+                array_shift($this->cache['generateTimeSlotsOfDayPeriods']);
             }
-            $this->cache['generateTimeSlotsOfDay'][$cacheKey] = $timeSlots;
+
+            $this->cache['generateTimeSlotsOfDayPeriods'][$cacheKey] = $timeSlots;
         }
 
         return $timeSlots;
     }
 
     /**
-     * Génère les crénaux horaires pour la periode passée en paramètre
-     * @param array $aPeriod array('begin'=>(int) minutes, 'end'=>(int) minutes) [minutes 0..1439]
-     * @return array
-     */
-    private function generateTimeSlotsOfPeriod(array $aPeriod)
-    {
-        if ($this->cacheSize) {
-            $cacheKey = serialize($aPeriod);
-
-            if (isset($this->cache['generateTimeSlotsOfPeriod'][$cacheKey])) {
-                return $this->cache['generateTimeSlotsOfPeriod'][$cacheKey];
-            }
-        }
-        
-        $timeSlots = [];
-        
-        if (isset($aPeriod['begin']) && isset($aPeriod['end']) && is_integer($aPeriod['begin']) && is_integer($aPeriod['end'])) {
-            $begin = $aPeriod['begin'];
-            $granularity = $this->granularity;
-            if ($this->midnightAlignment && ($begin % $granularity)) {
-                $begin = floor(($begin / $granularity) + 1) * $granularity;
-            }
-            for (; $begin + $granularity < $aPeriod['end']; $begin += $granularity) {
-                $timeSlots[] = [
-                  "begin" => $begin,
-                  "end" => $begin + $granularity,
-                ];
-            }
-        }
-
-        if ($this->cacheSize) {
-            if (count($this->cache['generateTimeSlotsOfPeriod']) > $this->cacheSize) {
-                array_shift($this->cache['generateTimeSlotsOfPeriod']);
-            }
-
-            $this->cache['generateTimeSlotsOfPeriod'][$cacheKey] = $timeSlots;
-        }
-
-        return $timeSlots;
-    }
-
-    /**
-     * Retourne les périodes déduites à partir des règles pour le jour passé en paramètre 
+     * Retourne les périodes déduites à partir des règles applicables au jour passé en paramètre 
      * @param \DateTime $dtDay
      * @param array $rule
      * @return type
@@ -493,8 +375,6 @@ class Calendar
                 case "sd" :
                     $year = $dtDay->format("Y");
                     $ecart = easter_days($year);
-                    $dtNow = new DateTime('now');
-                    $dtTomorrow = new DateTime("+1d");
                     $dtEaster = (new DateTime("$year-03-21"))->modify("+ $ecart d");
                     $dtEasterMonday = clone $dtEaster;
                     $dtEasterMonday->modify("+1d");
@@ -516,12 +396,6 @@ class Calendar
                                 $dayValid = true;
                                 break;
                             } elseif (($value === "pentecost" || $value === "pentecote" || $value === "pentecôte") && $dtDay->format("ymd") == $dtPentecost->format("ymd")) {
-                                $dayValid = true;
-                                break;
-                            } elseif (($value === "today" || $value === "aujourdhui") && $dtDay->format("ymd") == $dtPentecost->format("ymd")) {
-                                $dayValid = true;
-                                break;
-                            } elseif (($value === "tomorrow" || $value === "demain") && $dtDay->format("ymd") == $dtPentecost->format("ymd")) {
                                 $dayValid = true;
                                 break;
                             }
@@ -546,7 +420,7 @@ class Calendar
     }
 
     /**
-     * Simplifie la définition des périodes
+     * Simplifie la définition des périodes 
      * @param array $aPeriods
      * @return array
      */
@@ -609,7 +483,38 @@ class Calendar
     }
 
     /**
-     * Retourne les périodes $aOpenPeriods réduites des $aClosePeriods
+     * Ajuste les périodes en fonction de l'horodatage passé en paramètre
+     * @param array $periods Périodes à ajuster
+     * @param \DateTime $datetime Horodatage 
+     * @param int $type Type d'ajustement (début si -1) et (fin si +1)
+     * @return array Les périodes une fois ajustées
+     */
+    private function ajustPeriods(array $periods, \DateTime $datetime, $type)
+    {
+        list($hours, $minutes) = explode(":", $datetime->format("H:i"));
+        $minutesDay = ($hours * 60) + $minutes;
+
+        foreach ($periods as $key => $period) {
+            if ((int) $type < 0) {
+                if ($period['end'] <= $minutesDay) {
+                    unset($periods[$key]);
+                } elseif ($period['begin'] < $minutesDay) {
+                    $periods[$key]['begin'] = $minutesDay;
+                }
+            } elseif ((int) $type > 0) {
+                if ($period['begin'] > $minutesDay) {
+                    unset($periods[$key]);
+                } elseif ($period['end'] > $minutesDay) {
+                    $periods[$key]['end'] = $minutesDay;
+                }
+            }
+        }
+
+        return $periods;
+    }
+
+    /**
+     * Retourne les périodes $aOpenPeriods réduites des périodes $aClosePeriods 
      * @param array $aOpenPeriods
      * @param array $aClosePeriods
      * @return array
@@ -683,6 +588,63 @@ class Calendar
         }
 
         return $aOpenPeriods;
+    }
+
+    /**
+     * Parse la règle (string) et la retourne sur forme de tableau
+     * @param string $sRule
+     * @return array
+     * @throws Exception
+     */
+    private function parseRule($sRule)
+    {
+        if (!is_string($sRule)) {
+            throw new Exception('La règle doit être de type string');
+        }
+        $aParse = [];
+        $aRules = explode(";", $sRule);
+        foreach ($aRules as $rule) {
+            if (trim($rule) === "") {
+                continue;
+            }
+            list($ruleName, $ruleValues) = explode("=", $rule . "=");
+            $aValues = explode(",", $ruleValues);
+            foreach ($aValues as $value) {
+                if (strpos($value, "-") !== FALSE) {
+                    $aBoundaries = explode("-", $value);
+                    $aParse[trim($ruleName)][] = ["min" => trim($aBoundaries[0]), "max" => trim($aBoundaries[1])];
+                } else {
+                    $aParse[trim($ruleName)][] = trim($value);
+                }
+            }
+        }
+
+        return $aParse;
+    }
+
+    /**
+     * Vide le cache
+     * @return \Xelko\TimeSlots\Calendar
+     */
+    private function clearCache()
+    {
+        $this->cache = [
+          'generateTimeSlotsOfDayPeriods' => [],
+          'substractPeriods' => [],
+          'reducePeriods' => [],
+        ];
+        return $this;
+    }
+
+    /**
+     * Supprime toutes les données générées
+     * @return \Xelko\TimeSlots\Calendar
+     */
+    private function clearDays()
+    {
+        $this->aDays = null;
+        $this->clearCache();
+        return $this;
     }
 
 }
