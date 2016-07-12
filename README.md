@@ -75,7 +75,10 @@ $calendar->addOpenRules([
 
 // fermeture de 0 à 1440 (toute la journée) (prioritaire sur ouverture) chaque jour de pâques et lundi de Pâques et jour de pentecôte  
 // ainsi que chaque 1 janvier, 1 mai, 8 mai, 14 juillet fermé le matin  
-$calendar->addCloseRules(["sd:easter,easterMonday,ascension;periods:0-1440","bd:0101,0501,0508,0714;periods:0-720"]);  
+$calendar->addCloseRules([
+    "sd:easter,easterMonday,ascension;periods:0-1440",
+    "bd:0101,0501,0508,0714;periods:0-720"
+]);  
     
 // récupère les périodes d'ouverture du 01 janvier 2014 12:20:00 au 31 décembre 2016 12:20:00  
 $aixiaperiods = $calendar->getPeriodsOfDays(new \DateTime("2014-01-01 12:20:00"),new \DateTime("2016-12-31  12:20:00"));    
