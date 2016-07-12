@@ -73,7 +73,7 @@ class Calendar
      * @param array $aRules Tableau de règles
      * @return \Xelko\TimeSlots\Calendar
      */
-    public function addOpenRule(array $aRules)
+    public function addOpenRules(array $aRules)
     {
         foreach ($aRules as $rule) {
             $this->aRules["open"][] = $this->parseRule($rule);
@@ -87,7 +87,7 @@ class Calendar
      * @param array $aRules  Tableau de règles
      * @return \Xelko\TimeSlots\Calendar
      */
-    public function addCloseRule(array $aRules)
+    public function addCloseRules(array $aRules)
     {
         foreach ($aRules as $rule) {
             $this->aRules["close"][] = $this->parseRule($rule);
