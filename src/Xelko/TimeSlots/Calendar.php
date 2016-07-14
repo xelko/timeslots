@@ -41,6 +41,7 @@ class Calendar
     public function setCacheSize($cacheSize = 0)
     {
         $this->cacheSize = abs((int) $cacheSize);
+        $this->clearDays();
         return $this;
     }
 
@@ -145,7 +146,7 @@ class Calendar
         $dtCurrent = clone $dtBeginDate;
 
         $dtEndDate = clone $dtEnd;
-        // $dtEnd est exclu donc on retire une seconde
+        // $dtEnd est exclu donc on retire une seconde avant de recupérer le jour (dans le cas de minuit)
         $dtEndDate->modify("-1 sec")->setTime(0, 0, 0);
 
         $days = [];
@@ -282,7 +283,8 @@ class Calendar
      */
     private function getActiveDefinedPeriods(\DateTime $dtDay, array $rule)
     {
-        if (!isset($rule['periods'])) {
+        if (!isset($rule['p']) && !isset($rule['periods'])) {
+            // pas de périodes de définies = résultat vide
             return [];
         }
 
@@ -382,6 +384,8 @@ class Calendar
                     $dtAscension->modify("+39d");
                     $dtPentecost = clone $dtEaster;
                     $dtPentecost->modify("+88d");
+                    $dtPentecostMonday = clone $dtEaster;
+                    $dtPentecostMonday->modify("+89d");
 
                     $dayValid = false;
                     foreach ($values as $value) {
@@ -396,6 +400,9 @@ class Calendar
                                 $dayValid = true;
                                 break;
                             } elseif (($value === "pentecost" || $value === "pentecote" || $value === "pentecôte") && $dtDay->format("ymd") == $dtPentecost->format("ymd")) {
+                                $dayValid = true;
+                                break;
+                            } elseif (($value === "pentecostMonday" || $value === "lundiPentecote" || $value === "lundiPentecôte") && $dtDay->format("ymd") == $dtPentecostMonday->format("ymd")) {
                                 $dayValid = true;
                                 break;
                             }
@@ -510,7 +517,7 @@ class Calendar
             }
         }
 
-        return $periods;
+        return array_values($periods);
     }
 
     /**
@@ -607,14 +614,17 @@ class Calendar
             if (trim($rule) === "") {
                 continue;
             }
-            list($ruleName, $ruleValues) = explode("=", $rule . "=");
+            list($ruleName, $ruleValues) = explode("=", $rule, 2);
             $aValues = explode(",", $ruleValues);
             foreach ($aValues as $value) {
+                $value = trim($value);
                 if (strpos($value, "-") !== FALSE) {
                     $aBoundaries = explode("-", $value);
                     $aParse[trim($ruleName)][] = ["min" => trim($aBoundaries[0]), "max" => trim($aBoundaries[1])];
+                } elseif ($value === "") {
+                    throw new Exception("La valeur d'une règle ne peut pas être vide");
                 } else {
-                    $aParse[trim($ruleName)][] = trim($value);
+                    $aParse[trim($ruleName)][] = $value;
                 }
             }
         }
